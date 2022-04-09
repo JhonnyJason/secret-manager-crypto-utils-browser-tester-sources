@@ -256,7 +256,6 @@ testSalts = ->
 
 ############################################################
 # thingy-byte-uitils tests
-# import * as but from "./byteutilsbrowser"
 but = tbut
 array = new Uint8Array(10)
 array.fill(32)

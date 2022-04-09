@@ -256,8 +256,8 @@ testSalts = ->
 
 ############################################################
 # thingy-byte-uitils tests
-import * as but from "./byteutilsbrowser"
-
+# import * as but from "./byteutilsbrowser"
+but = tbut
 array = new Uint8Array(10)
 array.fill(32)
 array[9] = 42

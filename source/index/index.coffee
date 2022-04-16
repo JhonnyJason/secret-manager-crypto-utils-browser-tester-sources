@@ -31,6 +31,7 @@ runAllTest = ->
     testHexToBytes()
 
     await testShas()
+    await testPublicKey()
     await testSignatures()
     await testsymmetricEncryption()
     await testAsymmetricEncryption()
@@ -44,7 +45,7 @@ evaluate = ->
 
 ############################################################
 #region secret-manager-crypto-utils tests
-import * as secUtl from "./cryptoutilsbrowser"
+import * as secUtl from "./browser"
 import * as tbut from "thingy-byte-utils"
 
 results = {}
@@ -104,6 +105,43 @@ testShas = ->
             results.testShas="Error! Hex did not match the bytes version."
     catch error
         results.testShas=error.message
+
+############################################################
+testPublicKey = ->
+    try
+        keyPairHex = await secUtl.createKeyPairHex()
+        keyPairBytes = await secUtl.createKeyPairBytes()    
+
+        pubHex = await secUtl.createPublicKeyHex(keyPairHex.secretKeyHex)
+        pubBytes = await secUtl.createPublicKeyBytes(keyPairBytes.secretKeyBytes)    
+
+        isMatchHex = pubHex == keyPairHex.publicKeyHex
+        isMatchBytes = JSON.stringify(pubBytes) == JSON.stringify(keyPairBytes.publicKeyBytes)
+
+        if(isMatchHex and isMatchBytes)
+            success = true
+
+            c = count
+            before = performance.now()
+            while(c--)
+                pubHex = await secUtl.createPublicKeyHex(keyPairHex.secretKeyHex)
+
+            after = performance.now()
+            hexMS = after - before
+
+            c = count
+            before = performance.now()
+            while(c--)
+                pubBytes = await secUtl.createPublicKeyBytes(keyPairBytes.secretKeyBytes)
+
+            after = performance.now()
+            bytesMS = after - before
+
+            results.testPublicKey = { success, hexMS, bytesMS }
+        else
+            results.testPublicKey="Error! Created publicKey did not match pregenerated!"
+    catch error
+        results.testPublicKey=error.message
 
 ############################################################
 testSignatures = ->

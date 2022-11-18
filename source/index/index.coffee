@@ -35,14 +35,14 @@ runAllTest = ->
     await testSignatures()
     await testsymmetricEncryption()
     await testAsymmetricEncryption()
-    await testSalts() # success
 
-    await testAuthCode()
-    await testSessionKey()
     await testCreateSharedSecretHash()
     await testCreateSharedSecretRaw()
     await testReferencedSharedSecretHash()
     await testReferencedSharedSecretRaw()
+
+    await testSalts() # success
+
 
     evaluate()
 
@@ -284,124 +284,6 @@ testAsymmetricEncryption = ->
         results.testAsymmetricEncryption = error.message
 
 ############################################################
-testSalts = ->
-    try
-        salt = await secUtl.createRandomLengthSalt()
-        saltedContent = salt+testString
-        content = await secUtl.removeSalt(saltedContent)
-
-        if(content == testString)
-            results.testSalts="success"
-        else
-            results.testSalts="Error: original: "+testString+" doesn't match unsalted: "+content
-    catch error
-        results.testSalts=error.message
-
-
-
-
-
-############################################################
-testAuthCode = ->
-    try
-        request1 = {publicKey: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, nonce: 0, signature: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
-        request2 = {authCode: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, data:  "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
-
-        kpHex = await secUtl.createKeyPairHex()
-        alicePrivHex = kpHex.secretKeyHex
-        alicePubHex = kpHex.publicKeyHex
-
-        context = "lenny@extensivlyon.coffee/mega-context"
-
-        seedHex = await secUtl.createSharedSecretHashHex(alicePrivHex, alicePubHex, context)
-        seedBytes = tbut.hexToBytes(seedHex)
-        authCodeHex = await secUtl.authCodeHex(seedHex, request1)
-        authCodeBytes = await secUtl.authCodeBytes(seedBytes, request1)
-        
-        if(authCodeHex != (tbut.bytesToHex(authCodeBytes)))
-            throw new Error("Byte version and Hex version did not match!")
-
-        success = true
-        hexMS = 0
-        bytesMS = 0
-        before = 0
-        after = 0
-        c = 0
-
-
-        c = count
-        before = performance.now()
-        while(c--)
-            authCodeHex = secUtl.authCode(seedHex, request2)
-        after = performance.now()
-        hexMS = after - before
-
-        c = count
-        before = performance.now()
-        while(c--)
-            authCodeBytes = secUtl.authCodeBytes(seedHex, request2)
-        after = performance.now()
-        bytesMS = after - before
-
-        results.testAuthCode= {success, hexMS, bytesMS}
-
-    catch error then results.testAuthCode=error.message
-
-############################################################
-testSessionKey = ->
-    try
-        request1 = {publicKey: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, nonce: 0, signature: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
-        request2 = {authCode: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, data:  "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
-
-        kpHex = await secUtl.createKeyPairHex()
-        alicePrivHex = kpHex.secretKeyHex
-        alicePubHex = kpHex.publicKeyHex
-
-        context = "lenny@extensivlyon.coffee/mega-context"
-
-        seedHex = await secUtl.createSharedSecretHashHex(alicePrivHex, alicePubHex, context)
-        seedBytes = tbut.hexToBytes(seedHex)
-        sessionKeyHex = await secUtl.sessionKeyHex(seedHex, request1)
-        sessionKeyBytes = await secUtl.sessionKeyBytes(seedBytes, request1)
-        
-        if(sessionKeyHex != (tbut.bytesToHex(sessionKeyBytes)))
-            throw new Error("Byte version and Hex version did not match!")
-
-        testCipher = await secUtl.symmetricEncrypt(testString, sessionKeyHex)
-        # testUncipher = await secUtl.symmetricDecryptBytes(testCipher, sessionKeyBytes)
-        testUncipher = await secUtl.symmetricDecrypt(testCipher, sessionKeyHex)
-        
-        if(testUncipher != testString)
-            throw new Error("encyption and decryption of testString did not work with our sessionKey!")
-
-        success = true
-        hexMS = 0
-        bytesMS = 0
-        before = 0
-        after = 0
-        c = 0
-
-
-        c = count
-        before = performance.now()
-        while(c--)
-            sessionKeyHex = await secUtl.sessionKeyHex(seedHex, request2)
-        after = performance.now()
-        hexMS = after - before
-
-        c = count
-        before = performance.now()
-        while(c--)
-            sessionKeyBytes = await secUtl.sessionKeyBytes(seedBytes, request2)
-        after = performance.now()
-        bytesMS = after - before
-
-        results.testSessionKey= {success, hexMS, bytesMS}
-
-    catch error then results.testSessionKey=error.message
-
-
-############################################################
 testCreateSharedSecretHash = ->
     try
         kpBytes = await secUtl.createKeyPairBytes()
@@ -463,7 +345,6 @@ testCreateSharedSecretHash = ->
 
     catch error then results.createSharedSecretHash = error.message
 
-
 ############################################################
 testCreateSharedSecretRaw = ->
     try
@@ -523,7 +404,6 @@ testCreateSharedSecretRaw = ->
         results.createSharedSecretRaw = {success, hexMS, bytesMS}
 
     catch error then results.createSharedSecretRaw = error.message
-
 
 ############################################################
 testReferencedSharedSecretHash = ->
@@ -586,7 +466,6 @@ testReferencedSharedSecretHash = ->
 
     catch error then results.referencedSharedSecretHash = error.message
 
-
 ############################################################
 testReferencedSharedSecretRaw = ->
     try
@@ -647,6 +526,19 @@ testReferencedSharedSecretRaw = ->
 
     catch error then results.referencedSharedSecretRaw = error.message
 
+############################################################
+testSalts = ->
+    try
+        salt = await secUtl.createRandomLengthSalt()
+        saltedContent = salt+testString
+        content = await secUtl.removeSalt(saltedContent)
+
+        if(content == testString)
+            results.testSalts="success"
+        else
+            results.testSalts="Error: original: "+testString+" doesn't match unsalted: "+content
+    catch error
+        results.testSalts=error.message
 
 
 #endregion

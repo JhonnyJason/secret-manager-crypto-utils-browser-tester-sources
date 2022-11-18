@@ -24,11 +24,11 @@ run()
 ############################################################
 runAllTest = ->
 
-    testBytesToBigInt()
-    testBytesToUtf8()
-    testBytesToHex()
-    testUtf8ToBytes()
-    testHexToBytes()
+    # testBytesToBigInt()
+    # testBytesToUtf8()
+    # testBytesToHex()
+    # testUtf8ToBytes()
+    # testHexToBytes()
 
     await testShas()
     await testPublicKey()
@@ -37,9 +37,16 @@ runAllTest = ->
     await testAsymmetricEncryption()
     await testSalts() # success
 
+    await testAuthCode()
+    await testSessionKey()
+    await testCreateSharedSecretHash()
+    await testCreateSharedSecretRaw()
+    await testReferencedSharedSecretHash()
+    await testReferencedSharedSecretRaw()
+
     evaluate()
 
-evaluate = -> 
+evaluate = ->
     console.log(JSON.stringify(results, null, 4))
 
 
@@ -289,6 +296,358 @@ testSalts = ->
     catch error
         results.testSalts=error.message
 
+
+
+
+
+############################################################
+testAuthCode = ->
+    try
+        request1 = {publicKey: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, nonce: 0, signature: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+        request2 = {authCode: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, data:  "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+
+        kpHex = await secUtl.createKeyPairHex()
+        alicePrivHex = kpHex.secretKeyHex
+        alicePubHex = kpHex.publicKeyHex
+
+        context = "lenny@extensivlyon.coffee/mega-context"
+
+        seedHex = await secUtl.createSharedSecretHashHex(alicePrivHex, alicePubHex, context)
+        seedBytes = tbut.hexToBytes(seedHex)
+        authCodeHex = await secUtl.authCodeHex(seedHex, request1)
+        authCodeBytes = await secUtl.authCodeBytes(seedBytes, request1)
+        
+        if(authCodeHex != (tbut.bytesToHex(authCodeBytes)))
+            throw new Error("Byte version and Hex version did not match!")
+
+        success = true
+        hexMS = 0
+        bytesMS = 0
+        before = 0
+        after = 0
+        c = 0
+
+
+        c = count
+        before = performance.now()
+        while(c--)
+            authCodeHex = secUtl.authCode(seedHex, request2)
+        after = performance.now()
+        hexMS = after - before
+
+        c = count
+        before = performance.now()
+        while(c--)
+            authCodeBytes = secUtl.authCodeBytes(seedHex, request2)
+        after = performance.now()
+        bytesMS = after - before
+
+        results.testAuthCode= {success, hexMS, bytesMS}
+
+    catch error then results.testAuthCode=error.message
+
+############################################################
+testSessionKey = ->
+    try
+        request1 = {publicKey: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, nonce: 0, signature: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+        request2 = {authCode: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",timestamp: 0, data:  "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+
+        kpHex = await secUtl.createKeyPairHex()
+        alicePrivHex = kpHex.secretKeyHex
+        alicePubHex = kpHex.publicKeyHex
+
+        context = "lenny@extensivlyon.coffee/mega-context"
+
+        seedHex = await secUtl.createSharedSecretHashHex(alicePrivHex, alicePubHex, context)
+        seedBytes = tbut.hexToBytes(seedHex)
+        sessionKeyHex = await secUtl.sessionKeyHex(seedHex, request1)
+        sessionKeyBytes = await secUtl.sessionKeyBytes(seedBytes, request1)
+        
+        if(sessionKeyHex != (tbut.bytesToHex(sessionKeyBytes)))
+            throw new Error("Byte version and Hex version did not match!")
+
+        testCipher = await secUtl.symmetricEncrypt(testString, sessionKeyHex)
+        # testUncipher = await secUtl.symmetricDecryptBytes(testCipher, sessionKeyBytes)
+        testUncipher = await secUtl.symmetricDecrypt(testCipher, sessionKeyHex)
+        
+        if(testUncipher != testString)
+            throw new Error("encyption and decryption of testString did not work with our sessionKey!")
+
+        success = true
+        hexMS = 0
+        bytesMS = 0
+        before = 0
+        after = 0
+        c = 0
+
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sessionKeyHex = await secUtl.sessionKeyHex(seedHex, request2)
+        after = performance.now()
+        hexMS = after - before
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sessionKeyBytes = await secUtl.sessionKeyBytes(seedBytes, request2)
+        after = performance.now()
+        bytesMS = after - before
+
+        results.testSessionKey= {success, hexMS, bytesMS}
+
+    catch error then results.testSessionKey=error.message
+
+
+############################################################
+testCreateSharedSecretHash = ->
+    try
+        kpBytes = await secUtl.createKeyPairBytes()
+        alicePrivBytes = kpBytes.secretKeyBytes
+        alicePubBytes = kpBytes.publicKeyBytes
+        kpBytes = await secUtl.createKeyPairBytes()
+        bobPrivBytes = kpBytes.secretKeyBytes
+        bobPubBytes = kpBytes.publicKeyBytes
+
+        alicePrivHex = tbut.bytesToHex(alicePrivBytes)
+        alicePubHex = tbut.bytesToHex(alicePubBytes)
+        bobPrivHex = tbut.bytesToHex(bobPrivBytes)
+        bobPubHex = tbut.bytesToHex(bobPubBytes)
+
+        context = "test.extensivlyon.coffee/ultra-context"
+
+        sharedSecretAliceHex = await secUtl.createSharedSecretHashHex(alicePrivHex, bobPubHex, context)
+        sharedSecretBobHex = await secUtl.createSharedSecretHashHex(bobPrivHex, alicePubHex, context)
+        
+        if(sharedSecretAliceHex != sharedSecretBobHex)
+            throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
+
+
+        sharedSecretAliceBytes = await secUtl.createSharedSecretHashBytes(alicePrivBytes, bobPubBytes, context)
+        sharedSecretBobBytes = await secUtl.createSharedSecretHashBytes(bobPrivBytes, alicePubBytes, context)
+        
+        if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
+            throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")
+        
+        
+        compHex = tbut.bytesToHex(sharedSecretBobBytes)
+        if(sharedSecretAliceHex != compHex)
+            throw new Error("Hex version of Bytes Secret did not match the original Hex version!\ncompHex: #{compHex}\nsharedSecretAliceHex: #{sharedSecretAliceHex}")
+
+        success = true
+        before
+        after
+        hexMS
+        bytesMS
+        c
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceHex = await secUtl.createSharedSecretHashHex(alicePrivHex, bobPubHex, context)
+            sharedSecretBobHex = await secUtl.createSharedSecretHashHex(bobPrivHex, alicePubHex, context)
+        after = performance.now()
+        hexMS = after - before
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceBytes = await secUtl.createSharedSecretHashBytes(alicePrivBytes, bobPubBytes, context)
+            sharedSecretBobBytes = await secUtl.createSharedSecretHashBytes(bobPrivBytes, alicePubBytes, context)
+        after = performance.now()
+        bytesMS = after - before
+
+        results.createSharedSecretHash = {success, hexMS, bytesMS}
+
+    catch error then results.createSharedSecretHash = error.message
+
+
+############################################################
+testCreateSharedSecretRaw = ->
+    try
+        kpBytes = await secUtl.createKeyPairBytes()
+        alicePrivBytes = kpBytes.secretKeyBytes
+        alicePubBytes = kpBytes.publicKeyBytes
+        kpBytes = await secUtl.createKeyPairBytes()
+        bobPrivBytes = kpBytes.secretKeyBytes
+        bobPubBytes = kpBytes.publicKeyBytes
+
+        alicePrivHex = tbut.bytesToHex(alicePrivBytes)
+        alicePubHex = tbut.bytesToHex(alicePubBytes)
+        bobPrivHex = tbut.bytesToHex(bobPrivBytes)
+        bobPubHex = tbut.bytesToHex(bobPubBytes)
+
+        sharedSecretAliceHex = await secUtl.createSharedSecretRawHex(alicePrivHex, bobPubHex)
+        sharedSecretBobHex = await secUtl.createSharedSecretRawHex(bobPrivHex, alicePubHex)
+        
+        if(sharedSecretAliceHex != sharedSecretBobHex)
+            throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
+
+
+        sharedSecretAliceBytes = await secUtl.createSharedSecretRawBytes(alicePrivBytes, bobPubBytes)
+        sharedSecretBobBytes = await secUtl.createSharedSecretRawBytes(bobPrivBytes, alicePubBytes)
+        
+        if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
+            throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")
+        
+        
+        compHex = tbut.bytesToHex(sharedSecretBobBytes)
+        if(sharedSecretAliceHex != compHex)
+            throw new Error("Hex version of Bytes Secret did not match the original Hex version!\ncompHex: #{compHex}\nsharedSecretAliceHex: #{sharedSecretAliceHex}")
+
+        success = true
+        before
+        after
+        hexMS
+        bytesMS
+        c
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceHex = await secUtl.createSharedSecretRawHex(alicePrivHex, bobPubHex)
+            sharedSecretBobHex = await secUtl.createSharedSecretRawHex(bobPrivHex, alicePubHex)
+        after = performance.now()
+        hexMS = after - before
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceBytes = await secUtl.createSharedSecretRawBytes(alicePrivBytes, bobPubBytes)
+            sharedSecretBobBytes = await secUtl.createSharedSecretRawBytes(bobPrivBytes, alicePubBytes)
+        after = performance.now()
+        bytesMS = after - before
+        
+        results.createSharedSecretRaw = {success, hexMS, bytesMS}
+
+    catch error then results.createSharedSecretRaw = error.message
+
+
+############################################################
+testReferencedSharedSecretHash = ->
+    try
+        kpBytes = await secUtl.createKeyPairBytes()
+        alicePrivBytes = kpBytes.secretKeyBytes
+        alicePubBytes = kpBytes.publicKeyBytes
+        kpBytes = await secUtl.createKeyPairBytes()
+        bobPrivBytes = kpBytes.secretKeyBytes
+        bobPubBytes = kpBytes.publicKeyBytes
+
+        alicePrivHex = tbut.bytesToHex(alicePrivBytes)
+        alicePubHex = tbut.bytesToHex(alicePubBytes)
+        bobPrivHex = tbut.bytesToHex(bobPrivBytes)
+        bobPubHex = tbut.bytesToHex(bobPubBytes)
+
+        context = "test.extensivlyon.coffee/ultra-context"
+
+        referencedHex = await secUtl.referencedSharedSecretHashHex(bobPubHex, context)
+        referencePointHex = referencedHex.referencePointHex
+        sharedSecretAliceHex = referencedHex.sharedSecretHex
+
+        sharedSecretBobHex = await secUtl.createSharedSecretHashHex(bobPrivHex, referencePointHex, context)
+        if(sharedSecretAliceHex != sharedSecretBobHex)
+            throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
+
+
+        referencedBytes = await secUtl.referencedSharedSecretHashBytes(bobPubBytes, context)
+        referencePointBytes = referencedBytes.referencePointBytes
+        sharedSecretAliceBytes = referencedBytes.sharedSecretBytes
+
+        sharedSecretBobBytes = await secUtl.createSharedSecretHashBytes(bobPrivBytes, referencePointBytes, context)
+        if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
+            throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")    
+    
+        success = true
+        before
+        after
+        hexMS
+        bytesMS
+        c
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceHex = await secUtl.referencedSharedSecretHashHex(bobPubHex, context)
+            sharedSecretBobHex = await secUtl.referencedSharedSecretHashHex(alicePubHex, context)
+        after = performance.now()
+        hexMS = after - before
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceBytes = await secUtl.referencedSharedSecretHashBytes(bobPubBytes, context)
+            sharedSecretBobBytes = await secUtl.referencedSharedSecretHashBytes(alicePubBytes, context)
+        after = performance.now()
+        bytesMS = after - before
+    
+        results.referencedSharedSecretHash = {success, hexMS, bytesMS}
+
+    catch error then results.referencedSharedSecretHash = error.message
+
+
+############################################################
+testReferencedSharedSecretRaw = ->
+    try
+        kpBytes = await secUtl.createKeyPairBytes()
+        alicePrivBytes = kpBytes.secretKeyBytes
+        alicePubBytes = kpBytes.publicKeyBytes
+        kpBytes = await secUtl.createKeyPairBytes()
+        bobPrivBytes = kpBytes.secretKeyBytes
+        bobPubBytes = kpBytes.publicKeyBytes
+
+        alicePrivHex = tbut.bytesToHex(alicePrivBytes)
+        alicePubHex = tbut.bytesToHex(alicePubBytes)
+        bobPrivHex = tbut.bytesToHex(bobPrivBytes)
+        bobPubHex = tbut.bytesToHex(bobPubBytes)
+
+        context = "test.extensivlyon.coffee/ultra-context"
+
+        referencedHex = await secUtl.referencedSharedSecretRawHex(bobPubHex, context)
+        referencePointHex = referencedHex.referencePointHex
+        sharedSecretAliceHex = referencedHex.sharedSecretHex
+
+        sharedSecretBobHex = await secUtl.createSharedSecretRawHex(bobPrivHex, referencePointHex, context)
+        if(sharedSecretAliceHex != sharedSecretBobHex)
+            throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
+
+
+        referencedBytes = await secUtl.referencedSharedSecretRawBytes(bobPubBytes, context)
+        referencePointBytes = referencedBytes.referencePointBytes
+        sharedSecretAliceBytes = referencedBytes.sharedSecretBytes
+
+        sharedSecretBobBytes = await secUtl.createSharedSecretRawBytes(bobPrivBytes, referencePointBytes, context)
+        if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
+            throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")
+        
+        success = true
+        before
+        after
+        hexMS
+        bytesMS
+        c
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceHex = await secUtl.referencedSharedSecretRawHex(bobPubHex, context)
+            sharedSecretBobHex = await secUtl.referencedSharedSecretRawHex(alicePubHex, context)
+        after = performance.now()
+        hexMS = after - before
+
+        c = count
+        before = performance.now()
+        while(c--)
+            sharedSecretAliceBytes = await secUtl.referencedSharedSecretRawBytes(bobPubBytes, context)
+            sharedSecretBobBytes = await secUtl.referencedSharedSecretRawBytes(alicePubBytes, context)
+        after = performance.now()
+        bytesMS = after - before
+        results.referencedSharedSecretRaw = {success, hexMS, bytesMS}
+
+    catch error then results.referencedSharedSecretRaw = error.message
+
+
+
 #endregion
 
 
@@ -357,7 +716,7 @@ testHexToBytes = ->
     hexBytes = but.hexToBytes(hex)
     if JSON.stringify(hexBytes) == JSON.stringify(array)
         success = true
-        results.testHExToBytes = {success, array, hexBytes}
+        results.testHexToBytes = {success, array, hexBytes}
     else
         error = true
         results.testHexToBytes = {error, array, hexBytes}

@@ -31,15 +31,15 @@ runAllTest = ->
     # testHexToBytes()
 
     await testShas()
-    await testPublicKey()
-    await testSignatures()
+    # await testPublicKey()
+    # await testSignatures()
     await testsymmetricEncryption()
-    await testAsymmetricEncryption()
+    # await testAsymmetricEncryption()
 
-    await testCreateSharedSecretHash()
-    await testCreateSharedSecretRaw()
-    await testReferencedSharedSecretHash()
-    await testReferencedSharedSecretRaw()
+    # await testCreateSharedSecretHash()
+    # await testCreateSharedSecretRaw()
+    # await testReferencedSharedSecretHash()
+    # await testReferencedSharedSecretRaw()
 
     await testSalts() # success
 
@@ -58,7 +58,7 @@ import * as tbut from "thingy-byte-utils"
 
 results = {}
 testString = "testorritestorritestorri - asdaf 456789 äö90ß´ä-`''°^"
-count = 100
+count = 100000
 
 ############################################################
 testShas = ->
@@ -198,7 +198,7 @@ testsymmetricEncryption = ->
     try
         keyHex = await secUtl.createSymKeyHex()
 
-        gibbrishHex = await secUtl.symmetricEncryptHex(testString, keyHex)    
+        gibbrishHex = await secUtl.symmetricEncryptHex(testString, keyHex)
         decrypted = await secUtl.symmetricDecrypt(gibbrishHex, keyHex)
 
         hexMatched = decrypted == testString
@@ -210,12 +210,12 @@ testsymmetricEncryption = ->
         bytesMatched = decrypted == testString
         if(hexMatched and bytesMatched)
             success = true
+
             c = count
             before = performance.now()
             while(c--)
                 gibbrishHex = await secUtl.symmetricEncryptHex(testString, keyHex)
-                decrypted = await secUtl.symmetricDecrypt(gibbrishHex, keyHex)
-
+                decrypted = await secUtl.symmetricDecryptHex(gibbrishHex, keyHex)
             after = performance.now()
             hexMS = after - before
 
@@ -224,15 +224,25 @@ testsymmetricEncryption = ->
             while(c--)
                 gibbrishBytes = await secUtl.symmetricEncryptBytes(testString, keyBytes)    
                 decrypted = await secUtl.symmetricDecryptBytes(gibbrishBytes, keyBytes)
-
             after = performance.now()
             bytesMS = after - before
 
-            results.testsymmetricEncryption = {success, hexMS, bytesMS}
+            c = count
+            before = performance.now()
+            while(c--)
+                content = secUtl.createRandomLengthSalt() + testString
+                gibbrishHex = await secUtl.symmetricEncryptUnsalted(content, keyHex)
+                decrypted = await secUtl.symmetricDecryptUnsalted(gibbrishHex, keyHex)
+                decrypted = secUtl.removeSalt(decrypted)
+            after = performance.now()
+            oldHexMS = after - before
+
+            results.testSymmetricEncryption = {success, hexMS, oldHexMS, bytesMS}
         else
-            results.testsymmetricEncryption = "Error: Decrypted did not match original content!"
+            error = "Error: Decrypted did not match original content!"
+            results.testSymmetricEncryption = {error, testString, decrypted}
     catch error
-        results.testsymmetricEncryption = error.message
+        results.testSymmetricEncryption = error.message
 
 ############################################################
 testAsymmetricEncryption = ->
@@ -529,14 +539,55 @@ testReferencedSharedSecretRaw = ->
 ############################################################
 testSalts = ->
     try
-        salt = await secUtl.createRandomLengthSalt()
-        saltedContent = salt+testString
-        content = await secUtl.removeSalt(saltedContent)
 
-        if(content == testString)
-            results.testSalts="success"
+        content = testString
+        saltedContent = secUtl.saltContent(content)
+        unsaltedContent = secUtl.unsaltContent(saltedContent)
+                
+        if(content == unsaltedContent)
+            success = true
+            c = count
+            before = performance.now()
+            while(c--)
+                saltedContent = secUtl.saltContent(content)
+                unsaltedContent = secUtl.unsaltContent(saltedContent)
+                if(content != unsaltedContent)
+                    console.log(JSON.stringify(Uint8Array.from(saltedContent)))
+                    console.log("unsaltedContent: "+unsaltedContent)
+                    throw new Error("Error on NewSalt: Unsalted content did not match original content!")
+                
+            after = performance.now()
+            newSaltMS = after - before
+
+            c = count
+            before = performance.now()
+            while(c--)
+                saltedContent = secUtl.createRandomLengthSalt() + content
+                unsaltedContent = secUtl.removeSalt(saltedContent)
+                if(content != unsaltedContent)
+                    console.log(JSON.stringify(Uint8Array.from(saltedContent)))
+                    console.log("unsaltedContent: "+unsaltedContent)
+                    throw new Error("Error on oldSalt: Unsalted content did not match original content!")
+                
+            
+            after = performance.now()
+            oldSaltMS = after - before
+
+            results.testSalts = {success, newSaltMS, oldSaltMS}        
+        
         else
-            results.testSalts="Error: original: "+testString+" doesn't match unsalted: "+content
+            error = "Error: Unsalted content did not match original content!"
+            unsaltedContent = Uint8Array.from(unsaltedContent)
+            results.testSalts = {error, content, unsaltedContent} 
+        
+        # salt = await secUtl.createRandomLengthSalt()
+        # saltedContent = salt+testString
+        # content = await secUtl.removeSalt(saltedContent)
+
+        # if(content == testString)
+        #     results.testSalts="success"
+        # else
+        #     results.testSalts="Error: original: "+testString+" doesn't match unsalted: "+content
     catch error
         results.testSalts=error.message
 

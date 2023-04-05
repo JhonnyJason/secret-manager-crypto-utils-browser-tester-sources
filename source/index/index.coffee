@@ -23,7 +23,8 @@ run()
 
 ############################################################
 runAllTest = ->
-
+    await testSignatures() # let this run first to ignore performance regressions straight after startup
+    
     # testBytesToBigInt()
     # testBytesToUtf8()
     # testBytesToHex()
@@ -31,15 +32,15 @@ runAllTest = ->
     # testHexToBytes()
 
     await testShas()
-    # await testPublicKey()
-    # await testSignatures()
+    await testPublicKey()
+    await testSignatures()
     await testsymmetricEncryption()
-    # await testAsymmetricEncryption()
+    await testAsymmetricEncryption()
 
-    # await testCreateSharedSecretHash()
-    # await testCreateSharedSecretRaw()
-    # await testReferencedSharedSecretHash()
-    # await testReferencedSharedSecretRaw()
+    await testDiffieHellmanSecretHash()
+    await testDiffieHellmanSecretRaw()
+    await testElGamalSecretHash()
+    await testElGamalSecretRaw()
 
     await testSalts() # success
 
@@ -58,7 +59,7 @@ import * as tbut from "thingy-byte-utils"
 
 results = {}
 testString = "testorritestorritestorri - asdaf 456789 äö90ß´ä-`''°^"
-count = 100000
+count = 1000
 
 ############################################################
 testShas = ->
@@ -227,17 +228,7 @@ testsymmetricEncryption = ->
             after = performance.now()
             bytesMS = after - before
 
-            c = count
-            before = performance.now()
-            while(c--)
-                content = secUtl.createRandomLengthSalt() + testString
-                gibbrishHex = await secUtl.symmetricEncryptUnsalted(content, keyHex)
-                decrypted = await secUtl.symmetricDecryptUnsalted(gibbrishHex, keyHex)
-                decrypted = secUtl.removeSalt(decrypted)
-            after = performance.now()
-            oldHexMS = after - before
-
-            results.testSymmetricEncryption = {success, hexMS, oldHexMS, bytesMS}
+            results.testSymmetricEncryption = {success, hexMS, bytesMS}
         else
             error = "Error: Decrypted did not match original content!"
             results.testSymmetricEncryption = {error, testString, decrypted}
@@ -294,7 +285,7 @@ testAsymmetricEncryption = ->
         results.testAsymmetricEncryption = error.message
 
 ############################################################
-testCreateSharedSecretHash = ->
+testDiffieHellmanSecretHash = ->
     try
         kpBytes = await secUtl.createKeyPairBytes()
         alicePrivBytes = kpBytes.secretKeyBytes
@@ -310,15 +301,15 @@ testCreateSharedSecretHash = ->
 
         context = "test.extensivlyon.coffee/ultra-context"
 
-        sharedSecretAliceHex = await secUtl.createSharedSecretHashHex(alicePrivHex, bobPubHex, context)
-        sharedSecretBobHex = await secUtl.createSharedSecretHashHex(bobPrivHex, alicePubHex, context)
+        sharedSecretAliceHex = await secUtl.diffieHellmanSecretHashHex(alicePrivHex, bobPubHex, context)
+        sharedSecretBobHex = await secUtl.diffieHellmanSecretHashHex(bobPrivHex, alicePubHex, context)
         
         if(sharedSecretAliceHex != sharedSecretBobHex)
             throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
 
 
-        sharedSecretAliceBytes = await secUtl.createSharedSecretHashBytes(alicePrivBytes, bobPubBytes, context)
-        sharedSecretBobBytes = await secUtl.createSharedSecretHashBytes(bobPrivBytes, alicePubBytes, context)
+        sharedSecretAliceBytes = await secUtl.diffieHellmanSecretHashBytes(alicePrivBytes, bobPubBytes, context)
+        sharedSecretBobBytes = await secUtl.diffieHellmanSecretHashBytes(bobPrivBytes, alicePubBytes, context)
         
         if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
             throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")
@@ -338,25 +329,25 @@ testCreateSharedSecretHash = ->
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceHex = await secUtl.createSharedSecretHashHex(alicePrivHex, bobPubHex, context)
-            sharedSecretBobHex = await secUtl.createSharedSecretHashHex(bobPrivHex, alicePubHex, context)
+            sharedSecretAliceHex = await secUtl.diffieHellmanSecretHashHex(alicePrivHex, bobPubHex, context)
+            sharedSecretBobHex = await secUtl.diffieHellmanSecretHashHex(bobPrivHex, alicePubHex, context)
         after = performance.now()
         hexMS = after - before
 
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceBytes = await secUtl.createSharedSecretHashBytes(alicePrivBytes, bobPubBytes, context)
-            sharedSecretBobBytes = await secUtl.createSharedSecretHashBytes(bobPrivBytes, alicePubBytes, context)
+            sharedSecretAliceBytes = await secUtl.diffieHellmanSecretHashBytes(alicePrivBytes, bobPubBytes, context)
+            sharedSecretBobBytes = await secUtl.diffieHellmanSecretHashBytes(bobPrivBytes, alicePubBytes, context)
         after = performance.now()
         bytesMS = after - before
 
-        results.createSharedSecretHash = {success, hexMS, bytesMS}
+        results.diffieHellmanSecretHash = {success, hexMS, bytesMS}
 
-    catch error then results.createSharedSecretHash = error.message
+    catch error then results.diffieHellmanSecretHash = error.message
 
 ############################################################
-testCreateSharedSecretRaw = ->
+testDiffieHellmanSecretRaw = ->
     try
         kpBytes = await secUtl.createKeyPairBytes()
         alicePrivBytes = kpBytes.secretKeyBytes
@@ -370,15 +361,15 @@ testCreateSharedSecretRaw = ->
         bobPrivHex = tbut.bytesToHex(bobPrivBytes)
         bobPubHex = tbut.bytesToHex(bobPubBytes)
 
-        sharedSecretAliceHex = await secUtl.createSharedSecretRawHex(alicePrivHex, bobPubHex)
-        sharedSecretBobHex = await secUtl.createSharedSecretRawHex(bobPrivHex, alicePubHex)
+        sharedSecretAliceHex = await secUtl.diffieHellmanSecretRawHex(alicePrivHex, bobPubHex)
+        sharedSecretBobHex = await secUtl.diffieHellmanSecretRawHex(bobPrivHex, alicePubHex)
         
         if(sharedSecretAliceHex != sharedSecretBobHex)
             throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
 
 
-        sharedSecretAliceBytes = await secUtl.createSharedSecretRawBytes(alicePrivBytes, bobPubBytes)
-        sharedSecretBobBytes = await secUtl.createSharedSecretRawBytes(bobPrivBytes, alicePubBytes)
+        sharedSecretAliceBytes = await secUtl.diffieHellmanSecretRawBytes(alicePrivBytes, bobPubBytes)
+        sharedSecretBobBytes = await secUtl.diffieHellmanSecretRawBytes(bobPrivBytes, alicePubBytes)
         
         if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
             throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")
@@ -398,25 +389,25 @@ testCreateSharedSecretRaw = ->
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceHex = await secUtl.createSharedSecretRawHex(alicePrivHex, bobPubHex)
-            sharedSecretBobHex = await secUtl.createSharedSecretRawHex(bobPrivHex, alicePubHex)
+            sharedSecretAliceHex = await secUtl.diffieHellmanSecretRawHex(alicePrivHex, bobPubHex)
+            sharedSecretBobHex = await secUtl.diffieHellmanSecretRawHex(bobPrivHex, alicePubHex)
         after = performance.now()
         hexMS = after - before
 
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceBytes = await secUtl.createSharedSecretRawBytes(alicePrivBytes, bobPubBytes)
-            sharedSecretBobBytes = await secUtl.createSharedSecretRawBytes(bobPrivBytes, alicePubBytes)
+            sharedSecretAliceBytes = await secUtl.diffieHellmanSecretRawBytes(alicePrivBytes, bobPubBytes)
+            sharedSecretBobBytes = await secUtl.diffieHellmanSecretRawBytes(bobPrivBytes, alicePubBytes)
         after = performance.now()
         bytesMS = after - before
         
-        results.createSharedSecretRaw = {success, hexMS, bytesMS}
+        results.diffieHellmanSecretRaw = {success, hexMS, bytesMS}
 
-    catch error then results.createSharedSecretRaw = error.message
+    catch error then results.diffieHellmanSecretRaw = error.message
 
 ############################################################
-testReferencedSharedSecretHash = ->
+testElGamalSecretHash = ->
     try
         kpBytes = await secUtl.createKeyPairBytes()
         alicePrivBytes = kpBytes.secretKeyBytes
@@ -432,20 +423,20 @@ testReferencedSharedSecretHash = ->
 
         context = "test.extensivlyon.coffee/ultra-context"
 
-        referencedHex = await secUtl.referencedSharedSecretHashHex(bobPubHex, context)
+        referencedHex = await secUtl.elGamalSecretHashHex(bobPubHex, context)
         referencePointHex = referencedHex.referencePointHex
         sharedSecretAliceHex = referencedHex.sharedSecretHex
 
-        sharedSecretBobHex = await secUtl.createSharedSecretHashHex(bobPrivHex, referencePointHex, context)
+        sharedSecretBobHex = await secUtl.diffieHellmanSecretHashHex(bobPrivHex, referencePointHex, context)
         if(sharedSecretAliceHex != sharedSecretBobHex)
             throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
 
 
-        referencedBytes = await secUtl.referencedSharedSecretHashBytes(bobPubBytes, context)
+        referencedBytes = await secUtl.elGamalSecretHashBytes(bobPubBytes, context)
         referencePointBytes = referencedBytes.referencePointBytes
         sharedSecretAliceBytes = referencedBytes.sharedSecretBytes
 
-        sharedSecretBobBytes = await secUtl.createSharedSecretHashBytes(bobPrivBytes, referencePointBytes, context)
+        sharedSecretBobBytes = await secUtl.diffieHellmanSecretHashBytes(bobPrivBytes, referencePointBytes, context)
         if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
             throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")    
     
@@ -459,25 +450,25 @@ testReferencedSharedSecretHash = ->
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceHex = await secUtl.referencedSharedSecretHashHex(bobPubHex, context)
-            sharedSecretBobHex = await secUtl.referencedSharedSecretHashHex(alicePubHex, context)
+            sharedSecretAliceHex = await secUtl.elGamalSecretHashHex(bobPubHex, context)
+            sharedSecretBobHex = await secUtl.elGamalSecretHashHex(alicePubHex, context)
         after = performance.now()
         hexMS = after - before
 
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceBytes = await secUtl.referencedSharedSecretHashBytes(bobPubBytes, context)
-            sharedSecretBobBytes = await secUtl.referencedSharedSecretHashBytes(alicePubBytes, context)
+            sharedSecretAliceBytes = await secUtl.elGamalSecretHashBytes(bobPubBytes, context)
+            sharedSecretBobBytes = await secUtl.elGamalSecretHashBytes(alicePubBytes, context)
         after = performance.now()
         bytesMS = after - before
     
-        results.referencedSharedSecretHash = {success, hexMS, bytesMS}
+        results.elGamalSecretHash = {success, hexMS, bytesMS}
 
-    catch error then results.referencedSharedSecretHash = error.message
+    catch error then results.elGamalSecretHash = error.message
 
 ############################################################
-testReferencedSharedSecretRaw = ->
+testElGamalSecretRaw = ->
     try
         kpBytes = await secUtl.createKeyPairBytes()
         alicePrivBytes = kpBytes.secretKeyBytes
@@ -493,20 +484,20 @@ testReferencedSharedSecretRaw = ->
 
         context = "test.extensivlyon.coffee/ultra-context"
 
-        referencedHex = await secUtl.referencedSharedSecretRawHex(bobPubHex, context)
+        referencedHex = await secUtl.elGamalSecretRawHex(bobPubHex, context)
         referencePointHex = referencedHex.referencePointHex
         sharedSecretAliceHex = referencedHex.sharedSecretHex
 
-        sharedSecretBobHex = await secUtl.createSharedSecretRawHex(bobPrivHex, referencePointHex, context)
+        sharedSecretBobHex = await secUtl.diffieHellmanSecretRawHex(bobPrivHex, referencePointHex, context)
         if(sharedSecretAliceHex != sharedSecretBobHex)
             throw new Error("Hex Shared Secrets did not match!\n sharedSecretAliceHex: #{sharedSecretAliceHex}\nsharedSecretBobHex: #{sharedSecretBobHex}")
 
 
-        referencedBytes = await secUtl.referencedSharedSecretRawBytes(bobPubBytes, context)
+        referencedBytes = await secUtl.elGamalSecretRawBytes(bobPubBytes, context)
         referencePointBytes = referencedBytes.referencePointBytes
         sharedSecretAliceBytes = referencedBytes.sharedSecretBytes
 
-        sharedSecretBobBytes = await secUtl.createSharedSecretRawBytes(bobPrivBytes, referencePointBytes, context)
+        sharedSecretBobBytes = await secUtl.diffieHellmanSecretRawBytes(bobPrivBytes, referencePointBytes, context)
         if(tbut.bytesToHex(sharedSecretAliceBytes) != tbut.bytesToHex(sharedSecretBobBytes))
             throw new Error("Bytes Shared Secrets did not match!\n sharedSecretAliceBytes: #{sharedSecretAliceBytes}\nsharedSecretBobBytes: #{sharedSecretBobBytes}")
         
@@ -520,21 +511,21 @@ testReferencedSharedSecretRaw = ->
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceHex = await secUtl.referencedSharedSecretRawHex(bobPubHex, context)
-            sharedSecretBobHex = await secUtl.referencedSharedSecretRawHex(alicePubHex, context)
+            sharedSecretAliceHex = await secUtl.elGamalSecretRawHex(bobPubHex, context)
+            sharedSecretBobHex = await secUtl.elGamalSecretRawHex(alicePubHex, context)
         after = performance.now()
         hexMS = after - before
 
         c = count
         before = performance.now()
         while(c--)
-            sharedSecretAliceBytes = await secUtl.referencedSharedSecretRawBytes(bobPubBytes, context)
-            sharedSecretBobBytes = await secUtl.referencedSharedSecretRawBytes(alicePubBytes, context)
+            sharedSecretAliceBytes = await secUtl.elGamalSecretRawBytes(bobPubBytes, context)
+            sharedSecretBobBytes = await secUtl.elGamalSecretRawBytes(alicePubBytes, context)
         after = performance.now()
         bytesMS = after - before
-        results.referencedSharedSecretRaw = {success, hexMS, bytesMS}
+        results.elGamalSecretRaw = {success, hexMS, bytesMS}
 
-    catch error then results.referencedSharedSecretRaw = error.message
+    catch error then results.elGamalSecretRaw = error.message
 
 ############################################################
 testSalts = ->
@@ -557,23 +548,9 @@ testSalts = ->
                     throw new Error("Error on NewSalt: Unsalted content did not match original content!")
                 
             after = performance.now()
-            newSaltMS = after - before
+            saltMS = after - before
 
-            c = count
-            before = performance.now()
-            while(c--)
-                saltedContent = secUtl.createRandomLengthSalt() + content
-                unsaltedContent = secUtl.removeSalt(saltedContent)
-                if(content != unsaltedContent)
-                    console.log(JSON.stringify(Uint8Array.from(saltedContent)))
-                    console.log("unsaltedContent: "+unsaltedContent)
-                    throw new Error("Error on oldSalt: Unsalted content did not match original content!")
-                
-            
-            after = performance.now()
-            oldSaltMS = after - before
-
-            results.testSalts = {success, newSaltMS, oldSaltMS}        
+            results.testSalts = {success, saltMS}        
         
         else
             error = "Error: Unsalted content did not match original content!"
@@ -590,7 +567,6 @@ testSalts = ->
         #     results.testSalts="Error: original: "+testString+" doesn't match unsalted: "+content
     catch error
         results.testSalts=error.message
-
 
 #endregion
 
